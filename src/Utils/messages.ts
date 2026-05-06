@@ -565,133 +565,91 @@ export const generateWAMessageContent = async (
 			listType: proto.Message.ListMessage.ListType.PRODUCT_LIST,
 		}
 	} else if (hasNonNullishProperty(message, 'buttons')) {
+		const msg = message as any
 		const buttonsMessage: any = {
-			buttons: (message as any).buttons.map((b: any) => ({
+			buttons: msg.buttons.map((b: any) => ({
 				...b,
 				type: proto.Message.ButtonsMessage.Button.Type.RESPONSE,
 			})),
 		}
 		if (hasNonNullishProperty(message, 'text')) {
-			buttonsMessage.contentText = (message as any).text
+			buttonsMessage.contentText = msg.text
 			buttonsMessage.headerType = proto.Message.ButtonsMessage.HeaderType.EMPTY
 		} else {
-			if ((message as any).caption) {
-				buttonsMessage.contentText = (message as any).caption
-			}
+			const hasMedia = msg.image || msg.video || msg.document
+			if (hasMedia) m = await prepareWAMessageMedia(message as any, options)
+			if (msg.caption) buttonsMessage.contentText = msg.caption
 			const type = Object.keys(m)[0]?.replace('Message', '').toUpperCase()
-			buttonsMessage.headerType = (proto.Message.ButtonsMessage.HeaderType as any)[type!]
+			if (type) buttonsMessage.headerType = (proto.Message.ButtonsMessage.HeaderType as any)[type]
 			Object.assign(buttonsMessage, m)
 		}
-		if ((message as any).title) {
-			buttonsMessage.text = (message as any).title
+		if (msg.title) {
+			buttonsMessage.text = msg.title
 			buttonsMessage.headerType = proto.Message.ButtonsMessage.HeaderType.TEXT
 		}
-		if ((message as any).footer) {
-			buttonsMessage.footerText = (message as any).footer
-		}
+		if (msg.footer) buttonsMessage.footerText = msg.footer
 		m = { buttonsMessage }
 	} else if (hasNonNullishProperty(message, 'templateButtons')) {
-		const hydratedTemplate: any = {
-			hydratedButtons: (message as any).templateButtons,
-		}
+		const msg = message as any
+		const hydratedTemplate: any = { hydratedButtons: msg.templateButtons }
 		if (hasNonNullishProperty(message, 'text')) {
-			hydratedTemplate.hydratedContentText = (message as any).text
+			hydratedTemplate.hydratedContentText = msg.text
 		} else {
-			if ((message as any).caption) {
-				hydratedTemplate.hydratedContentText = (message as any).caption
-			}
+			const hasMedia = msg.image || msg.video || msg.document
+			if (hasMedia) m = await prepareWAMessageMedia(message as any, options)
+			if (msg.caption) hydratedTemplate.hydratedContentText = msg.caption
 			Object.assign(hydratedTemplate, m)
 		}
-		if ((message as any).footer) {
-			hydratedTemplate.hydratedFooterText = (message as any).footer
-		}
+		if (msg.footer) hydratedTemplate.hydratedFooterText = msg.footer
 		m = { templateMessage: { hydratedTemplate } }
 	} else if (hasNonNullishProperty(message, 'interactiveButtons')) {
-		const interactiveMessage: any = {
-			nativeFlowMessage: {
-				buttons: (message as any).interactiveButtons,
-			},
-		}
-		if ((message as any).text) {
-			interactiveMessage.body = { text: (message as any).text }
-		}
-		if ((message as any).title) {
-			interactiveMessage.header = {
-				title: (message as any).title,
-				subtitle: (message as any).subtitle ?? null,
-				hasMediaAttachment: false,
-			}
-		} else if ((message as any).caption) {
-			interactiveMessage.body = { text: (message as any).caption }
+		const msg = message as any
+		const interactiveMessage: any = { nativeFlowMessage: { buttons: msg.interactiveButtons } }
+		if (msg.body) interactiveMessage.body = { text: msg.body }
+		if (msg.title) {
+			interactiveMessage.header = { title: msg.title, subtitle: msg.subtitle ?? null, hasMediaAttachment: false }
+		} else if (msg.caption || msg.image || msg.video || msg.document) {
+			const hasMedia = msg.image || msg.video || msg.document
+			const mediaContent = hasMedia ? await prepareWAMessageMedia(message as any, options) : {}
+			interactiveMessage.body = { text: msg.caption ?? '' }
 			interactiveMessage.header = {
 				title: null,
-				subtitle: (message as any).subtitle ?? null,
-				hasMediaAttachment: (message as any).hasMediaAttachment ? Boolean((message as any).hasMediaAttachment) : false,
-				...m,
+				subtitle: msg.subtitle ?? null,
+				hasMediaAttachment: !!hasMedia,
+				...mediaContent,
 			}
 		}
-		if ((message as any).footer) {
-			interactiveMessage.footer = { text: (message as any).footer }
-		}
+		if (msg.footer) interactiveMessage.footer = { text: msg.footer }
 		m = { interactiveMessage }
 	} else if (hasNonNullishProperty(message, 'shop')) {
-		const interactiveMessage: any = {
-			shopStorefrontMessage: {
-				surface: (message as any).shop.surface,
-				id: (message as any).shop.id,
-			},
+		const msg = message as any
+		const interactiveMessage: any = { shopStorefrontMessage: { surface: msg.shop.surface, id: msg.shop.id } }
+		if (msg.body) interactiveMessage.body = { text: msg.body }
+		if (msg.title) {
+			interactiveMessage.header = { title: msg.title, subtitle: msg.subtitle ?? null, hasMediaAttachment: false }
+		} else if (msg.caption || msg.image || msg.video || msg.document) {
+			const hasMedia = msg.image || msg.video || msg.document
+			const mediaContent = hasMedia ? await prepareWAMessageMedia(message as any, options) : {}
+			interactiveMessage.body = { text: msg.caption ?? '' }
+			interactiveMessage.header = { title: null, subtitle: msg.subtitle ?? null, hasMediaAttachment: !!hasMedia, ...mediaContent }
 		}
-		if ((message as any).text) {
-			interactiveMessage.body = { text: (message as any).text }
-		}
-		if ((message as any).title) {
-			interactiveMessage.header = {
-				title: (message as any).title,
-				subtitle: (message as any).subtitle ?? null,
-				hasMediaAttachment: false,
-			}
-		} else if ((message as any).caption) {
-			interactiveMessage.body = { text: (message as any).caption }
-			interactiveMessage.header = {
-				title: null,
-				subtitle: (message as any).subtitle ?? null,
-				hasMediaAttachment: false,
-				...m,
-			}
-		}
-		if ((message as any).footer) {
-			interactiveMessage.footer = { text: (message as any).footer }
-		}
+		if (msg.footer) interactiveMessage.footer = { text: msg.footer }
 		m = { interactiveMessage }
 	} else if (hasNonNullishProperty(message, 'collection')) {
+		const msg = message as any
 		const interactiveMessage: any = {
-			collectionMessage: {
-				bizJid: (message as any).collection.bizJid,
-				id: (message as any).collection.id,
-				messageVersion: (message as any).collection.version,
-			},
+			collectionMessage: { bizJid: msg.collection.bizJid, id: msg.collection.id, messageVersion: msg.collection.version },
 		}
-		if ((message as any).text) {
-			interactiveMessage.body = { text: (message as any).text }
+		if (msg.body) interactiveMessage.body = { text: msg.body }
+		if (msg.title) {
+			interactiveMessage.header = { title: msg.title, subtitle: msg.subtitle ?? null, hasMediaAttachment: false }
+		} else if (msg.caption || msg.image || msg.video || msg.document) {
+			const hasMedia = msg.image || msg.video || msg.document
+			const mediaContent = hasMedia ? await prepareWAMessageMedia(message as any, options) : {}
+			interactiveMessage.body = { text: msg.caption ?? '' }
+			interactiveMessage.header = { title: null, subtitle: msg.subtitle ?? null, hasMediaAttachment: !!hasMedia, ...mediaContent }
 		}
-		if ((message as any).title) {
-			interactiveMessage.header = {
-				title: (message as any).title,
-				subtitle: (message as any).subtitle ?? null,
-				hasMediaAttachment: false,
-			}
-		} else if ((message as any).caption) {
-			interactiveMessage.body = { text: (message as any).caption }
-			interactiveMessage.header = {
-				title: null,
-				subtitle: (message as any).subtitle ?? null,
-				hasMediaAttachment: false,
-				...m,
-			}
-		}
-		if ((message as any).footer) {
-			interactiveMessage.footer = { text: (message as any).footer }
-		}
+		if (msg.footer) interactiveMessage.footer = { text: msg.footer }
 		m = { interactiveMessage }
 	} else if (hasNonNullishProperty(message, 'cards')) {
 		const slides = await Promise.all(
