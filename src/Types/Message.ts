@@ -215,7 +215,105 @@ export type ButtonReplyInfo = {
 	displayText: string
 	id: string
 	index: number
+	nativeFlows?: {
+		name: string
+		paramsJson: string
+		version: number
+	}
 }
+
+export type WAButtonsMessage = {
+	buttons: proto.Message.ButtonsMessage.IButton[]
+	text?: string
+	caption?: string
+	title?: string
+	footer?: string
+} & AnyMediaMessageContent
+
+export type WATemplateButtonsMessage = {
+	templateButtons: proto.IHydratedTemplateButton[]
+	text?: string
+	caption?: string
+	footer?: string
+} & AnyMediaMessageContent
+
+export type WAInteractiveButtonsMessage = {
+	interactiveButtons: proto.Message.InteractiveMessage.NativeFlowMessage.INativeFlowButton[]
+	text?: string
+	caption?: string
+	title?: string
+	subtitle?: string
+	footer?: string
+	hasMediaAttachment?: boolean
+} & AnyMediaMessageContent
+
+export type WAListMessage = {
+	sections: proto.Message.ListMessage.ISection[]
+	title?: string
+	buttonText: string
+	text?: string
+	footer?: string
+}
+
+export type WAProductListMessage = {
+	productList: proto.Message.ListMessage.IProductSection[]
+	businessOwnerJid: string
+	title?: string
+	buttonText: string
+	text?: string
+	footer?: string
+	thumbnail?: WAMediaUpload
+}
+
+export type WAShopMessage = {
+	shop: {
+		surface?: proto.Message.InteractiveMessage.ShopMessage.Surface
+		id: string
+	}
+	text?: string
+	caption?: string
+	title?: string
+	subtitle?: string
+	footer?: string
+	hasMediaAttachment?: boolean
+} & AnyMediaMessageContent
+
+export type WACollectionMessage = {
+	collection: {
+		bizJid: string
+		id: string
+		version?: number
+	}
+	text?: string
+	caption?: string
+	title?: string
+	subtitle?: string
+	footer?: string
+	hasMediaAttachment?: boolean
+} & AnyMediaMessageContent
+
+export type WACarouselCard = {
+	image?: WAMediaUpload
+	video?: WAMediaUpload
+	product?: {
+		productImage: WAMediaUpload
+		productId: string
+		[key: string]: any
+	}
+	title?: string
+	body?: string
+	footer?: string
+	buttons: proto.Message.InteractiveMessage.NativeFlowMessage.INativeFlowButton[]
+}
+
+export type WACarouselMessage = {
+	cards: WACarouselCard[]
+	text?: string
+	title?: string
+	subtitle?: string
+	footer?: string
+	hasMediaAttachment?: boolean
+} & AnyMediaMessageContent
 
 export type GroupInviteInfo = {
 	inviteCode: string
@@ -259,8 +357,16 @@ export type AnyRegularMessageContent = (
 	| { react: proto.Message.IReactionMessage }
 	| {
 			buttonReply: ButtonReplyInfo
-			type: 'template' | 'plain'
+			type: 'template' | 'plain' | 'list' | 'interactive'
 	  }
+	| WAButtonsMessage
+	| WATemplateButtonsMessage
+	| WAInteractiveButtonsMessage
+	| WAListMessage
+	| WAProductListMessage
+	| WAShopMessage
+	| WACollectionMessage
+	| WACarouselMessage
 	| {
 			groupInvite: GroupInviteInfo
 	  }

@@ -50,6 +50,8 @@ import {
 	type BinaryNode,
 	type BinaryNodeAttributes,
 	type FullJid,
+	getBinaryFilteredBizBot,
+	getBinaryFilteredButtons,
 	getBinaryNodeChild,
 	getBinaryNodeChildren,
 	isHostedLidUser,
@@ -621,6 +623,58 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 		return { nodes, shouldIncludeDeviceIdentity }
 	}
 
+	const getButtonType = (msg: proto.IMessage | null | undefined): string | undefined => {
+		if (!msg) return undefined
+		if (msg.listMessage) return 'list'
+		if (msg.buttonsMessage) return 'buttons'
+		if (msg.interactiveMessage?.nativeFlowMessage) return 'native_flow'
+		return undefined
+	}
+
+	const getButtonArgs = (msg: proto.IMessage | null | undefined): BinaryNode => {
+		const nativeFlow = msg?.interactiveMessage?.nativeFlowMessage
+		const firstButtonName = nativeFlow?.buttons?.[0]?.name ?? ''
+		const nativeFlowSpecials = [
+			'mpm', 'cta_catalog', 'send_location',
+			'call_permission_request', 'wa_payment_transaction_details',
+			'automated_greeting_message_view_catalog'
+		]
+		if (nativeFlow && (firstButtonName === 'review_and_pay' || firstButtonName === 'payment_info')) {
+			return {
+				tag: 'biz',
+				attrs: { native_flow_name: firstButtonName === 'review_and_pay' ? 'order_details' : firstButtonName }
+			}
+		} else if (nativeFlow && nativeFlowSpecials.includes(firstButtonName)) {
+			return {
+				tag: 'biz',
+				attrs: { actual_actors: '2', host_storage: '2', privacy_mode_ts: unixTimestampSeconds().toString() },
+				content: [
+					{ tag: 'interactive', attrs: { type: 'native_flow', v: '1' }, content: [{ tag: 'native_flow', attrs: { v: '2', name: firstButtonName } }] },
+					{ tag: 'quality_control', attrs: { source_type: 'third_party' } }
+				]
+			}
+		} else if (nativeFlow || msg?.buttonsMessage) {
+			return {
+				tag: 'biz',
+				attrs: { actual_actors: '2', host_storage: '2', privacy_mode_ts: unixTimestampSeconds().toString() },
+				content: [
+					{ tag: 'interactive', attrs: { type: 'native_flow', v: '1' }, content: [{ tag: 'native_flow', attrs: { v: '9', name: 'mixed' } }] },
+					{ tag: 'quality_control', attrs: { source_type: 'third_party' } }
+				]
+			}
+		} else if (msg?.listMessage) {
+			return {
+				tag: 'biz',
+				attrs: { actual_actors: '2', host_storage: '2', privacy_mode_ts: unixTimestampSeconds().toString() },
+				content: [
+					{ tag: 'list', attrs: { v: '2', type: 'product_list' } },
+					{ tag: 'quality_control', attrs: { source_type: 'third_party' } }
+				]
+			}
+		}
+		return { tag: 'biz', attrs: { actual_actors: '2', host_storage: '2', privacy_mode_ts: unixTimestampSeconds().toString() } }
+	}
+
 	const relayMessage = async (
 		jid: string,
 		message: proto.IMessage,
@@ -680,6 +734,9 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 				jid: participant.jid
 			})
 		}
+
+		const normalizedMsg = normalizeMessageContent(message)
+		const buttonType = getButtonType(normalizedMsg)
 
 		await authState.keys.transaction(async () => {
 			const mediaType = getMediaType(message)
@@ -1068,7 +1125,15 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 				})
 			}
 
-			if (additionalNodes && additionalNodes.length > 0) {
+			if (!isNewsletter && buttonType) {
+				const buttonsNode = getButtonArgs(normalizedMsg)
+				const filteredButtons = getBinaryFilteredButtons(additionalNodes ?? [])
+				if (filteredButtons) {
+					;(stanza.content as BinaryNode[]).push(...additionalNodes!)
+				} else {
+					;(stanza.content as BinaryNode[]).push(buttonsNode)
+				}
+			} else if (additionalNodes && additionalNodes.length > 0) {
 				;(stanza.content as BinaryNode[]).push(...additionalNodes)
 			}
 

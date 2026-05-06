@@ -498,6 +498,16 @@ export const generateWAMessageContent = async (
 		m.messageContextInfo.messageAddOnDurationInSecs = message.type === 1 ? message.time || 86400 : 0
 	} else if (hasNonNullishProperty(message, 'buttonReply')) {
 		switch (message.type) {
+			case 'list':
+				m.listResponseMessage = {
+					title: message.buttonReply.displayText,
+					description: message.buttonReply.displayText,
+					singleSelectReply: {
+						selectedRowId: message.buttonReply.id,
+					},
+					listType: proto.Message.ListResponseMessage.ListType.SINGLE_SELECT,
+				}
+				break
 			case 'template':
 				m.templateButtonReplyMessage = {
 					selectedDisplayText: message.buttonReply.displayText,
@@ -512,7 +522,221 @@ export const generateWAMessageContent = async (
 					type: proto.Message.ButtonsResponseMessage.Type.DISPLAY_TEXT
 				}
 				break
+			case 'interactive':
+				m.interactiveResponseMessage = {
+					body: {
+						text: message.buttonReply.displayText,
+						format: proto.Message.InteractiveResponseMessage.Body.Format.EXTENSIONS_1,
+					},
+					nativeFlowResponseMessage: {
+						name: message.buttonReply.nativeFlows?.name,
+						paramsJson: message.buttonReply.nativeFlows?.paramsJson,
+						version: message.buttonReply.nativeFlows?.version,
+					},
+				}
+				break
 		}
+	} else if (hasNonNullishProperty(message, 'sections')) {
+		m.listMessage = {
+			title: (message as any).title,
+			buttonText: (message as any).buttonText,
+			footerText: (message as any).footer,
+			description: (message as any).text,
+			sections: (message as any).sections,
+			listType: proto.Message.ListMessage.ListType.SINGLE_SELECT,
+		}
+	} else if (hasNonNullishProperty(message, 'productList')) {
+		const thumbResult = (message as any).thumbnail
+			? await generateThumbnail((message as any).thumbnail, 'image', options)
+			: null
+		m.listMessage = {
+			title: (message as any).title,
+			buttonText: (message as any).buttonText,
+			footerText: (message as any).footer,
+			description: (message as any).text,
+			productListInfo: {
+				productSections: (message as any).productList,
+				headerImage: {
+					productId: (message as any).productList[0]?.products?.[0]?.productId,
+					jpegThumbnail: thumbResult?.thumbnail ? Buffer.from(thumbResult.thumbnail, 'base64') : undefined,
+				},
+				businessOwnerJid: (message as any).businessOwnerJid,
+			},
+			listType: proto.Message.ListMessage.ListType.PRODUCT_LIST,
+		}
+	} else if (hasNonNullishProperty(message, 'buttons')) {
+		const buttonsMessage: any = {
+			buttons: (message as any).buttons.map((b: any) => ({
+				...b,
+				type: proto.Message.ButtonsMessage.Button.Type.RESPONSE,
+			})),
+		}
+		if (hasNonNullishProperty(message, 'text')) {
+			buttonsMessage.contentText = (message as any).text
+			buttonsMessage.headerType = proto.Message.ButtonsMessage.HeaderType.EMPTY
+		} else {
+			if ((message as any).caption) {
+				buttonsMessage.contentText = (message as any).caption
+			}
+			const type = Object.keys(m)[0]?.replace('Message', '').toUpperCase()
+			buttonsMessage.headerType = (proto.Message.ButtonsMessage.HeaderType as any)[type!]
+			Object.assign(buttonsMessage, m)
+		}
+		if ((message as any).title) {
+			buttonsMessage.text = (message as any).title
+			buttonsMessage.headerType = proto.Message.ButtonsMessage.HeaderType.TEXT
+		}
+		if ((message as any).footer) {
+			buttonsMessage.footerText = (message as any).footer
+		}
+		m = { buttonsMessage }
+	} else if (hasNonNullishProperty(message, 'templateButtons')) {
+		const hydratedTemplate: any = {
+			hydratedButtons: (message as any).templateButtons,
+		}
+		if (hasNonNullishProperty(message, 'text')) {
+			hydratedTemplate.hydratedContentText = (message as any).text
+		} else {
+			if ((message as any).caption) {
+				hydratedTemplate.hydratedContentText = (message as any).caption
+			}
+			Object.assign(hydratedTemplate, m)
+		}
+		if ((message as any).footer) {
+			hydratedTemplate.hydratedFooterText = (message as any).footer
+		}
+		m = { templateMessage: { hydratedTemplate } }
+	} else if (hasNonNullishProperty(message, 'interactiveButtons')) {
+		const interactiveMessage: any = {
+			nativeFlowMessage: {
+				buttons: (message as any).interactiveButtons,
+			},
+		}
+		if ((message as any).text) {
+			interactiveMessage.body = { text: (message as any).text }
+		}
+		if ((message as any).title) {
+			interactiveMessage.header = {
+				title: (message as any).title,
+				subtitle: (message as any).subtitle ?? null,
+				hasMediaAttachment: false,
+			}
+		} else if ((message as any).caption) {
+			interactiveMessage.body = { text: (message as any).caption }
+			interactiveMessage.header = {
+				title: null,
+				subtitle: (message as any).subtitle ?? null,
+				hasMediaAttachment: (message as any).hasMediaAttachment ? Boolean((message as any).hasMediaAttachment) : false,
+				...m,
+			}
+		}
+		if ((message as any).footer) {
+			interactiveMessage.footer = { text: (message as any).footer }
+		}
+		m = { interactiveMessage }
+	} else if (hasNonNullishProperty(message, 'shop')) {
+		const interactiveMessage: any = {
+			shopStorefrontMessage: {
+				surface: (message as any).shop.surface,
+				id: (message as any).shop.id,
+			},
+		}
+		if ((message as any).text) {
+			interactiveMessage.body = { text: (message as any).text }
+		}
+		if ((message as any).title) {
+			interactiveMessage.header = {
+				title: (message as any).title,
+				subtitle: (message as any).subtitle ?? null,
+				hasMediaAttachment: false,
+			}
+		} else if ((message as any).caption) {
+			interactiveMessage.body = { text: (message as any).caption }
+			interactiveMessage.header = {
+				title: null,
+				subtitle: (message as any).subtitle ?? null,
+				hasMediaAttachment: false,
+				...m,
+			}
+		}
+		if ((message as any).footer) {
+			interactiveMessage.footer = { text: (message as any).footer }
+		}
+		m = { interactiveMessage }
+	} else if (hasNonNullishProperty(message, 'collection')) {
+		const interactiveMessage: any = {
+			collectionMessage: {
+				bizJid: (message as any).collection.bizJid,
+				id: (message as any).collection.id,
+				messageVersion: (message as any).collection.version,
+			},
+		}
+		if ((message as any).text) {
+			interactiveMessage.body = { text: (message as any).text }
+		}
+		if ((message as any).title) {
+			interactiveMessage.header = {
+				title: (message as any).title,
+				subtitle: (message as any).subtitle ?? null,
+				hasMediaAttachment: false,
+			}
+		} else if ((message as any).caption) {
+			interactiveMessage.body = { text: (message as any).caption }
+			interactiveMessage.header = {
+				title: null,
+				subtitle: (message as any).subtitle ?? null,
+				hasMediaAttachment: false,
+				...m,
+			}
+		}
+		if ((message as any).footer) {
+			interactiveMessage.footer = { text: (message as any).footer }
+		}
+		m = { interactiveMessage }
+	} else if (hasNonNullishProperty(message, 'cards')) {
+		const slides = await Promise.all(
+			(message as any).cards.map(async (slide: any) => {
+				const { image, video, product, title, body, footer, buttons } = slide
+				let header: any = {}
+				if (product) {
+					const { imageMessage } = await prepareWAMessageMedia({ image: product.productImage }, options)
+					header = { productMessage: { product: { ...product, productImage: imageMessage }, ...slide } }
+				} else if (image) {
+					header = await prepareWAMessageMedia({ image }, options)
+				} else if (video) {
+					header = await prepareWAMessageMedia({ video }, options)
+				}
+				return {
+					header: { title, hasMediaAttachment: true, ...header },
+					body: { text: body },
+					footer: { text: footer },
+					nativeFlowMessage: { buttons },
+				}
+			})
+		)
+		const interactiveMessage: any = { carouselMessage: { cards: slides } }
+		if ((message as any).text) {
+			interactiveMessage.body = { text: (message as any).text }
+		}
+		if ((message as any).title) {
+			interactiveMessage.header = {
+				title: (message as any).title,
+				subtitle: (message as any).subtitle ?? null,
+				hasMediaAttachment: false,
+			}
+		} else if ((message as any).caption) {
+			interactiveMessage.body = { text: (message as any).caption }
+			interactiveMessage.header = {
+				title: null,
+				subtitle: (message as any).subtitle ?? null,
+				hasMediaAttachment: false,
+				...m,
+			}
+		}
+		if ((message as any).footer) {
+			interactiveMessage.footer = { text: (message as any).footer }
+		}
+		m = { interactiveMessage }
 	} else if (hasOptionalProperty(message, 'ptv') && message.ptv) {
 		const { videoMessage } = await prepareWAMessageMedia({ video: message.video }, options)
 		m.ptvMessage = videoMessage
