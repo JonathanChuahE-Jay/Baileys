@@ -324,6 +324,74 @@ export const prepareWAMessageMedia = async (
 	return obj
 }
 
+export const prepareAlbumMessageContent = async (
+	jid: string,
+	albums: any[],
+	options: MessageGenerationOptions & { suki: { relayMessage: Function; waUploadToServer: Function } }
+) => {
+	if (!Array.isArray(albums)) {
+		throw new Error('albums must be an array containing media objects.')
+	}
+
+	if (albums.length === 0) {
+		throw new Error('albums cannot be empty. At least one media item is required.')
+	}
+
+	const validCount = albums.filter(m => 'image' in m || 'video' in m).length
+	if (validCount === 0) {
+		throw new Error("albums contains no valid media. Use 'image' or 'video' keys.")
+	}
+
+	const messages: any[] = []
+
+	const albumMsg = generateWAMessageFromContent(
+		jid,
+		{
+			albumMessage: {
+				expectedImageCount: albums.filter(item => 'image' in item).length,
+				expectedVideoCount: albums.filter(item => 'video' in item).length
+			}
+		},
+		options
+	)
+
+	await options.suki.relayMessage(jid, albumMsg.message!, { messageId: albumMsg.key.id ?? undefined })
+
+	for (const media of albums) {
+		let content: any = {}
+		if ('image' in media) {
+			content = { image: media.image }
+		} else if ('video' in media) {
+			content = { video: media.video }
+		} else {
+			continue
+		}
+
+		const uploadFn = async (encFilePath: string, opts: any) => {
+			return options.suki.waUploadToServer(encFilePath, { ...opts, newsletter: isJidNewsletter(jid) })
+		}
+
+		const mediaMsg = await generateWAMessage(jid, { ...content, ...media }, {
+			...options,
+			upload: uploadFn as any
+		})
+
+		if (mediaMsg) {
+			mediaMsg.message!.messageContextInfo = {
+				messageSecret: randomBytes(32),
+				messageAssociation: {
+					associationType: WAProto.MessageAssociation.AssociationType.MEDIA_ALBUM,
+					parentMessageKey: albumMsg.key
+				}
+			}
+		}
+
+		messages.push(mediaMsg)
+	}
+
+	return messages
+}
+
 export const prepareDisappearingMessageSettingContent = (ephemeralExpiration?: number) => {
 	ephemeralExpiration = ephemeralExpiration || 0
 	const content: WAMessageContent = {
@@ -783,6 +851,44 @@ export const generateWAMessageContent = async (
 		m.albumMessage = {
 			expectedImageCount: message.album.expectedImageCount,
 			expectedVideoCount: message.album.expectedVideoCount
+		}
+	} else if (hasNonNullishProperty(message, 'payment')) {
+		const msg = message as any
+		m.requestPaymentMessage = {
+			amount: {
+				currencyCode: msg.payment?.currency || 'IDR',
+				offset: msg.payment?.offset || 0,
+				value: msg.payment?.amount || 999999999
+			},
+			expiryTimestamp: msg.payment?.expiry || 0,
+			amount1000: (msg.payment?.amount || 999999999) * 1000,
+			currencyCodeIso4217: msg.payment?.currency || 'IDR',
+			requestFrom: msg.payment?.from || '0@s.whatsapp.net',
+			noteMessage: {
+				extendedTextMessage: {
+					text: msg.payment?.note || 'Notes'
+				}
+			},
+			background: {
+				placeholderArgb: msg.payment?.image?.placeholderArgb || 4278190080,
+				textArgb: msg.payment?.image?.textArgb || 4294967295,
+				subtextArgb: msg.payment?.image?.subtextArgb || 4294967295,
+				type: 1
+			}
+		}
+	} else if (hasNonNullishProperty(message, 'paymentInvite')) {
+		const msg = message as any
+		m.messageContextInfo = {}
+		m.paymentInviteMessage = {
+			expiryTimestamp: msg.paymentInvite?.expiry || 0,
+			serviceType: msg.paymentInvite?.type || 2
+		}
+	} else if (hasNonNullishProperty(message, 'call')) {
+		const msg = message as any
+		m.scheduledCallCreationMessage = {
+			scheduledTimestampMs: msg.call?.time || Date.now(),
+			callType: msg.call?.type || 1,
+			title: msg.call?.name || 'Call Creation'
 		}
 	} else if (hasNonNullishProperty(message, 'sharePhoneNumber')) {
 		m.protocolMessage = {

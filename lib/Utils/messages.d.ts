@@ -12,6 +12,12 @@ type ExtractByKey<T, K extends PropertyKey> = T extends Record<K, any> ? T : nev
 export declare const extractUrlFromText: (text: string) => string | undefined;
 export declare const generateLinkPreviewIfRequired: (text: string, getUrlInfo: MessageGenerationOptions["getUrlInfo"], logger: MessageGenerationOptions["logger"]) => Promise<import("../Types/index.js").WAUrlInfo | undefined>;
 export declare const prepareWAMessageMedia: (message: AnyMediaMessageContent, options: MessageContentGenerationOptions) => Promise<proto.Message>;
+export declare const prepareAlbumMessageContent: (jid: string, albums: any[], options: MessageGenerationOptions & {
+    suki: {
+        relayMessage: Function;
+        waUploadToServer: Function;
+    };
+}) => Promise<any[]>;
 export declare const prepareDisappearingMessageSettingContent: (ephemeralExpiration?: number) => proto.Message;
 /**
  * Generate forwarded message content like WA does

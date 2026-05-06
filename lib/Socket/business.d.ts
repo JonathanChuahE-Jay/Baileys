@@ -21,6 +21,10 @@ export declare const makeBusinessSocket: (config: SocketConfig) => {
     removeCoverPhoto: (id: string) => Promise<any>;
     sendMessageAck: (node: BinaryNode, errorCode?: number) => Promise<void>;
     sendRetryRequest: (node: BinaryNode, forceIncludeKeys?: boolean) => Promise<void>;
+    offerCall: (toJid: string, isVideo?: boolean) => Promise<{
+        id: string;
+        to: string;
+    }>;
     rejectCall: (callId: string, callFrom: string) => Promise<void>;
     fetchMessageHistory: (count: number, oldestMsgKey: import("../index.js").WAMessageKey, oldestMsgTimestamp: number | import("long").default) => Promise<string>;
     requestPlaceholderResend: (messageKey: import("../index.js").WAMessageKey, msgData?: Partial<import("../index.js").WAMessage>) => Promise<string | undefined>;
@@ -46,7 +50,7 @@ export declare const makeBusinessSocket: (config: SocketConfig) => {
     })[]>;
     updateMemberLabel: (jid: string, memberLabel: string) => Promise<string>;
     updateMediaMessage: (message: import("../index.js").WAMessage) => Promise<import("../index.js").WAMessage>;
-    sendMessage: (jid: string, content: import("../index.js").AnyMessageContent, options?: import("../index.js").MiscMessageGenerationOptions) => Promise<import("../index.js").WAMessage | undefined>;
+    sendMessage: (jid: string, content: import("../index.js").AnyMessageContent, options?: import("../index.js").MiscMessageGenerationOptions) => Promise<any>;
     newsletterCreate: (name: string, description?: string) => Promise<import("../index.js").NewsletterMetadata>;
     newsletterUpdate: (jid: string, updates: import("../index.js").NewsletterUpdate) => Promise<unknown>;
     newsletterSubscribers: (jid: string) => Promise<{

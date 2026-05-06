@@ -6,6 +6,10 @@ import { type BinaryNode } from '../WABinary/index.js';
 export declare const makeMessagesRecvSocket: (config: SocketConfig) => {
     sendMessageAck: (node: BinaryNode, errorCode?: number) => Promise<void>;
     sendRetryRequest: (node: BinaryNode, forceIncludeKeys?: boolean) => Promise<void>;
+    offerCall: (toJid: string, isVideo?: boolean) => Promise<{
+        id: string;
+        to: string;
+    }>;
     rejectCall: (callId: string, callFrom: string) => Promise<void>;
     fetchMessageHistory: (count: number, oldestMsgKey: WAMessageKey, oldestMsgTimestamp: number | Long) => Promise<string>;
     requestPlaceholderResend: (messageKey: WAMessageKey, msgData?: Partial<WAMessage>) => Promise<string | undefined>;
@@ -31,7 +35,7 @@ export declare const makeMessagesRecvSocket: (config: SocketConfig) => {
     })[]>;
     updateMemberLabel: (jid: string, memberLabel: string) => Promise<string>;
     updateMediaMessage: (message: WAMessage) => Promise<WAMessage>;
-    sendMessage: (jid: string, content: import("../Types/index.js").AnyMessageContent, options?: import("../Types/index.js").MiscMessageGenerationOptions) => Promise<WAMessage | undefined>;
+    sendMessage: (jid: string, content: import("../Types/index.js").AnyMessageContent, options?: import("../Types/index.js").MiscMessageGenerationOptions) => Promise<any>;
     newsletterCreate: (name: string, description?: string) => Promise<import("../Types/index.js").NewsletterMetadata>;
     newsletterUpdate: (jid: string, updates: import("../Types/index.js").NewsletterUpdate) => Promise<unknown>;
     newsletterSubscribers: (jid: string) => Promise<{

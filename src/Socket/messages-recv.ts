@@ -36,6 +36,7 @@ import {
 	encodeBigEndian,
 	encodeSignedDeviceIdentity,
 	extractAddressingContext,
+	generateMessageIDV2,
 	getCallStatusFromNode,
 	getHistoryMsg,
 	getNextPreKeys,
@@ -78,6 +79,7 @@ import {
 	isLidUser,
 	isPnUser,
 	jidDecode,
+	jidEncode,
 	jidNormalizedUser,
 	S_WHATSAPP_NET
 } from '../WABinary'
@@ -108,7 +110,9 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 		sendPeerDataOperationMessage,
 		messageRetryManager,
 		issuePrivacyTokens,
-		fetchAccountReachoutTimelock
+		fetchAccountReachoutTimelock,
+		getUSyncDevices,
+		createParticipantNodes
 	} = sock
 
 	const getLIDForPN = signalRepository.lidMapping.getLIDForPN.bind(signalRepository.lidMapping)
@@ -398,6 +402,68 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 		const stanza = buildAckStanza(node, errorCode, authState.creds.me!.id)
 		logger.debug({ recv: { tag: node.tag, attrs: node.attrs }, sent: stanza.attrs }, 'sent ack')
 		await sendNode(stanza)
+	}
+
+	const offerCall = async (toJid: string, isVideo = false) => {
+		const callId = randomBytes(16).toString('hex').toUpperCase().substring(0, 64)
+		const offerContent: BinaryNode[] = []
+		offerContent.push({ tag: 'audio', attrs: { enc: 'opus', rate: '16000' }, content: undefined })
+		offerContent.push({ tag: 'audio', attrs: { enc: 'opus', rate: '8000' }, content: undefined })
+
+		if (isVideo) {
+			offerContent.push({
+				tag: 'video',
+				attrs: { enc: 'vp8', dec: 'vp8', orientation: '0', screen_width: '1920', screen_height: '1080', device_orientation: '0' },
+				content: undefined
+			})
+		}
+
+		offerContent.push({ tag: 'net', attrs: { medium: '3' }, content: undefined })
+		offerContent.push({ tag: 'capability', attrs: { ver: '1' }, content: new Uint8Array([1, 4, 255, 131, 207, 4]) })
+		offerContent.push({ tag: 'encopt', attrs: { keygen: '2' }, content: undefined })
+
+		const encKey = randomBytes(32)
+		const devices = (await getUSyncDevices([toJid], true, false)).map(({ user, device }) =>
+			jidEncode(user, 's.whatsapp.net', device)
+		)
+		await assertSessions(devices, true)
+
+		const { nodes: destinations, shouldIncludeDeviceIdentity } = await createParticipantNodes(
+			devices,
+			{ call: { callKey: new Uint8Array(encKey) } },
+			{ count: '0' }
+		)
+		offerContent.push({ tag: 'destination', attrs: {}, content: destinations })
+
+		if (shouldIncludeDeviceIdentity) {
+			offerContent.push({
+				tag: 'device-identity',
+				attrs: {},
+				content: encodeSignedDeviceIdentity(authState.creds.account!, true)
+			})
+		}
+
+		const stanza: BinaryNode = {
+			tag: 'call',
+			attrs: {
+				id: generateMessageIDV2(authState.creds.me?.id),
+				to: toJid
+			},
+			content: [
+				{
+					tag: 'offer',
+					attrs: {
+						'call-id': callId,
+						'call-creator': authState.creds.me!.id
+					},
+					content: offerContent
+				}
+			]
+		}
+
+		await query(stanza)
+
+		return { id: callId, to: toJid }
 	}
 
 	const rejectCall = async (callId: string, callFrom: string) => {
@@ -1839,6 +1905,7 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 		...sock,
 		sendMessageAck,
 		sendRetryRequest,
+		offerCall,
 		rejectCall,
 		fetchMessageHistory,
 		requestPlaceholderResend,

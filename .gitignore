@@ -18,3 +18,4 @@ test.ts
 TestData
 wa-logs*
 coverage
+.claude

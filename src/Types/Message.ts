@@ -163,6 +163,36 @@ export type AlbumMessageOptions = {
 	expectedVideoCount?: number
 }
 
+export type WAPaymentMessageOptions = {
+	currency?: string
+	offset?: number
+	amount?: number
+	expiry?: number
+	from?: string
+	note?: string
+	image?: {
+		placeholderArgb?: number
+		textArgb?: number
+		subtextArgb?: number
+	}
+}
+
+export type WAPaymentInviteMessageOptions = {
+	/** service type (default 2) */
+	type?: number
+	/** expiry timestamp in ms */
+	expiry?: number
+}
+
+export type WAScheduledCallMessageOptions = {
+	/** scheduled timestamp in ms */
+	time?: number
+	/** call type: 1 = audio, 2 = video */
+	type?: number
+	/** call title */
+	name?: string
+}
+
 type SharePhoneNumber = {
 	sharePhoneNumber: boolean
 }
@@ -389,6 +419,9 @@ export type AnyRegularMessageContent = (
 	  }
 	| SharePhoneNumber
 	| RequestPhoneNumber
+	| { payment: WAPaymentMessageOptions }
+	| { paymentInvite: WAPaymentInviteMessageOptions }
+	| { call: WAScheduledCallMessageOptions }
 ) &
 	ViewOnce
 

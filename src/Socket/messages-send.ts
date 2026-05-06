@@ -18,6 +18,7 @@ import {
 	assertMeId,
 	bindWaitForEvent,
 	decryptMediaRetryData,
+	delay,
 	encodeNewsletterMessage,
 	encodeSignedDeviceIdentity,
 	encodeWAMessage,
@@ -32,6 +33,7 @@ import {
 	MessageRetryManager,
 	normalizeMessageContent,
 	parseAndInjectE2ESessions,
+	prepareAlbumMessageContent,
 	unixTimestampSeconds
 } from '../Utils'
 import { getUrlInfo } from '../Utils/link-preview'
@@ -1371,6 +1373,22 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 							: 0
 						: disappearingMessagesInChat
 				await groupToggleEphemeral(jid, value)
+			} else if (typeof content === 'object' && 'album' in content && (content as any).album) {
+				const albumMsg = await prepareAlbumMessageContent(jid, (content as any).album, {
+					suki: { relayMessage, waUploadToServer },
+					userJid,
+					upload: waUploadToServer,
+					...options
+				} as any)
+				for (const media of albumMsg) {
+					await delay((options as any).delay || 500)
+					await relayMessage(jid, media.message!, {
+						messageId: media.key.id!,
+						useCachedGroupMetadata: options.useCachedGroupMetadata,
+						statusJidList: options.statusJidList
+					})
+				}
+				return albumMsg[albumMsg.length - 1]
 			} else {
 				const fullMsg = await generateWAMessage(jid, content, {
 					logger,
