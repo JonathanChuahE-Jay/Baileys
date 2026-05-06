@@ -400,15 +400,10 @@ export const generateWAMessageContent = async (
 	if (hasNonNullishProperty(message, 'interactiveButtons')) {
 		const msg = message as any
 		const interactiveMessage: any = { nativeFlowMessage: { buttons: msg.interactiveButtons } }
-
-		// Always set body from body or text
 		if (msg.body || msg.text) interactiveMessage.body = { text: msg.body || msg.text }
-
 		if (msg.title) {
-			// Title-only header (no media)
 			interactiveMessage.header = { title: msg.title, subtitle: msg.subtitle ?? null, hasMediaAttachment: false }
 		} else if (msg.caption || msg.image || msg.video || msg.document) {
-			// Media (and optional caption) header
 			const hasMedia = msg.image || msg.video || msg.document
 			const mediaContent = hasMedia ? await prepareWAMessageMedia(message as any, options) : {}
 			interactiveMessage.body = { text: msg.caption ?? '' }
@@ -418,13 +413,7 @@ export const generateWAMessageContent = async (
 				hasMediaAttachment: !!hasMedia,
 				...mediaContent,
 			}
-		} else {
-			// ✅ FIX: text + buttons only, no image/title/caption
-			// WhatsApp requires a header node to be present even for text-only interactive messages.
-			// Without it the nativeFlowMessage is silently dropped by the WA servers.
-			interactiveMessage.header = { title: null, subtitle: null, hasMediaAttachment: false }
 		}
-
 		if (msg.footer) interactiveMessage.footer = { text: msg.footer }
 		m = { interactiveMessage }
 	} else if (hasNonNullishProperty(message, 'sections')) {
