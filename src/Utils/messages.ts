@@ -397,7 +397,73 @@ export const generateWAMessageContent = async (
 	options: MessageContentGenerationOptions
 ) => {
 	let m: WAMessageContent = {}
-	if (hasNonNullishProperty(message, 'text')) {
+	if (hasNonNullishProperty(message, 'interactiveButtons')) {
+		const msg = message as any
+		const interactiveMessage: any = { nativeFlowMessage: { buttons: msg.interactiveButtons } }
+		if (msg.body || msg.text) interactiveMessage.body = { text: msg.body || msg.text }
+		if (msg.title) {
+			interactiveMessage.header = { title: msg.title, subtitle: msg.subtitle ?? null, hasMediaAttachment: false }
+		} else if (msg.caption || msg.image || msg.video || msg.document) {
+			const hasMedia = msg.image || msg.video || msg.document
+			const mediaContent = hasMedia ? await prepareWAMessageMedia(message as any, options) : {}
+			interactiveMessage.body = { text: msg.caption ?? '' }
+			interactiveMessage.header = {
+				title: null,
+				subtitle: msg.subtitle ?? null,
+				hasMediaAttachment: !!hasMedia,
+				...mediaContent,
+			}
+		}
+		if (msg.footer) interactiveMessage.footer = { text: msg.footer }
+		m = { interactiveMessage }
+	} else if (hasNonNullishProperty(message, 'sections')) {
+		m.listMessage = {
+			title: (message as any).title,
+			buttonText: (message as any).buttonText,
+			footerText: (message as any).footer,
+			description: (message as any).text,
+			sections: (message as any).sections,
+			listType: proto.Message.ListMessage.ListType.SINGLE_SELECT,
+		}
+	} else if (hasNonNullishProperty(message, 'buttons')) {
+		const msg = message as any
+		const buttonsMessage: any = {
+			buttons: msg.buttons.map((b: any) => ({
+				...b,
+				type: proto.Message.ButtonsMessage.Button.Type.RESPONSE,
+			})),
+		}
+		if (hasNonNullishProperty(message, 'text')) {
+			buttonsMessage.contentText = msg.text
+			buttonsMessage.headerType = proto.Message.ButtonsMessage.HeaderType.EMPTY
+		} else {
+			const hasMedia = msg.image || msg.video || msg.document
+			if (hasMedia) m = await prepareWAMessageMedia(message as any, options)
+			if (msg.caption) buttonsMessage.contentText = msg.caption
+			const type = Object.keys(m)[0]?.replace('Message', '').toUpperCase()
+			if (type) buttonsMessage.headerType = (proto.Message.ButtonsMessage.HeaderType as any)[type]
+			Object.assign(buttonsMessage, m)
+		}
+		if (msg.title) {
+			buttonsMessage.text = msg.title
+			buttonsMessage.headerType = proto.Message.ButtonsMessage.HeaderType.TEXT
+		}
+		if (msg.footer) buttonsMessage.footerText = msg.footer
+		m = { buttonsMessage }
+	} else if (hasNonNullishProperty(message, 'templateButtons')) {
+		const msg = message as any
+		const hydratedTemplate: any = { hydratedButtons: msg.templateButtons }
+		if (hasNonNullishProperty(message, 'text')) {
+			hydratedTemplate.hydratedContentText = msg.text
+		} else {
+			const hasMedia = msg.image || msg.video || msg.document
+			if (hasMedia) m = await prepareWAMessageMedia(message as any, options)
+			if (msg.caption) hydratedTemplate.hydratedContentText = msg.caption
+			Object.assign(hydratedTemplate, m)
+		}
+		if (msg.footer) hydratedTemplate.hydratedFooterText = msg.footer
+		m = { templateMessage: { hydratedTemplate } }
+	} else if (hasNonNullishProperty(message, 'text')) {
 		const extContent = { text: message.text } as WATextMessage
 
 		let urlInfo = message.linkPreview
@@ -536,15 +602,6 @@ export const generateWAMessageContent = async (
 				}
 				break
 		}
-	} else if (hasNonNullishProperty(message, 'sections')) {
-		m.listMessage = {
-			title: (message as any).title,
-			buttonText: (message as any).buttonText,
-			footerText: (message as any).footer,
-			description: (message as any).text,
-			sections: (message as any).sections,
-			listType: proto.Message.ListMessage.ListType.SINGLE_SELECT,
-		}
 	} else if (hasNonNullishProperty(message, 'productList')) {
 		const thumbResult = (message as any).thumbnail
 			? await generateThumbnail((message as any).thumbnail, 'image', options)
@@ -564,63 +621,6 @@ export const generateWAMessageContent = async (
 			},
 			listType: proto.Message.ListMessage.ListType.PRODUCT_LIST,
 		}
-	} else if (hasNonNullishProperty(message, 'buttons')) {
-		const msg = message as any
-		const buttonsMessage: any = {
-			buttons: msg.buttons.map((b: any) => ({
-				...b,
-				type: proto.Message.ButtonsMessage.Button.Type.RESPONSE,
-			})),
-		}
-		if (hasNonNullishProperty(message, 'text')) {
-			buttonsMessage.contentText = msg.text
-			buttonsMessage.headerType = proto.Message.ButtonsMessage.HeaderType.EMPTY
-		} else {
-			const hasMedia = msg.image || msg.video || msg.document
-			if (hasMedia) m = await prepareWAMessageMedia(message as any, options)
-			if (msg.caption) buttonsMessage.contentText = msg.caption
-			const type = Object.keys(m)[0]?.replace('Message', '').toUpperCase()
-			if (type) buttonsMessage.headerType = (proto.Message.ButtonsMessage.HeaderType as any)[type]
-			Object.assign(buttonsMessage, m)
-		}
-		if (msg.title) {
-			buttonsMessage.text = msg.title
-			buttonsMessage.headerType = proto.Message.ButtonsMessage.HeaderType.TEXT
-		}
-		if (msg.footer) buttonsMessage.footerText = msg.footer
-		m = { buttonsMessage }
-	} else if (hasNonNullishProperty(message, 'templateButtons')) {
-		const msg = message as any
-		const hydratedTemplate: any = { hydratedButtons: msg.templateButtons }
-		if (hasNonNullishProperty(message, 'text')) {
-			hydratedTemplate.hydratedContentText = msg.text
-		} else {
-			const hasMedia = msg.image || msg.video || msg.document
-			if (hasMedia) m = await prepareWAMessageMedia(message as any, options)
-			if (msg.caption) hydratedTemplate.hydratedContentText = msg.caption
-			Object.assign(hydratedTemplate, m)
-		}
-		if (msg.footer) hydratedTemplate.hydratedFooterText = msg.footer
-		m = { templateMessage: { hydratedTemplate } }
-	} else if (hasNonNullishProperty(message, 'interactiveButtons')) {
-		const msg = message as any
-		const interactiveMessage: any = { nativeFlowMessage: { buttons: msg.interactiveButtons } }
-		if (msg.body) interactiveMessage.body = { text: msg.body }
-		if (msg.title) {
-			interactiveMessage.header = { title: msg.title, subtitle: msg.subtitle ?? null, hasMediaAttachment: false }
-		} else if (msg.caption || msg.image || msg.video || msg.document) {
-			const hasMedia = msg.image || msg.video || msg.document
-			const mediaContent = hasMedia ? await prepareWAMessageMedia(message as any, options) : {}
-			interactiveMessage.body = { text: msg.caption ?? '' }
-			interactiveMessage.header = {
-				title: null,
-				subtitle: msg.subtitle ?? null,
-				hasMediaAttachment: !!hasMedia,
-				...mediaContent,
-			}
-		}
-		if (msg.footer) interactiveMessage.footer = { text: msg.footer }
-		m = { interactiveMessage }
 	} else if (hasNonNullishProperty(message, 'shop')) {
 		const msg = message as any
 		const interactiveMessage: any = { shopStorefrontMessage: { surface: msg.shop.surface, id: msg.shop.id } }
