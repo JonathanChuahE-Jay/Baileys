@@ -337,6 +337,32 @@ export const prepareAlbumMessageContent = async (
 		throw new Error('albums cannot be empty. At least one media item is required.')
 	}
 
+	const normaliseAlbumItem = (item: any) => {
+		if ('image' in item || 'video' in item) {
+			return item
+		}
+
+		if (item.type === 'image' && (item.media || item.url || item.path)) {
+			return { ...item, image: item.media || item.url || item.path }
+		}
+
+		if (item.type === 'video' && (item.media || item.url || item.path)) {
+			return { ...item, video: item.media || item.url || item.path }
+		}
+
+		if (item.imageUrl) {
+			return { ...item, image: item.imageUrl }
+		}
+
+		if (item.videoUrl) {
+			return { ...item, video: item.videoUrl }
+		}
+
+		return item
+	}
+
+	albums = albums.map(normaliseAlbumItem)
+
 	const validCount = albums.filter(m => 'image' in m || 'video' in m).length
 	if (validCount === 0) {
 		throw new Error("albums contains no valid media. Use 'image' or 'video' keys.")
@@ -730,9 +756,10 @@ export const generateWAMessageContent = async (
 		}
 		if (msg.footer) interactiveMessage.footer = { text: msg.footer }
 		m = { interactiveMessage }
-	} else if (hasNonNullishProperty(message, 'cards')) {
+	} else if (hasNonNullishProperty(message, 'cards') || hasNonNullishProperty(message as any, 'carousel')) {
+		const carousel = (message as any).carousel ?? message
 		const slides = await Promise.all(
-			(message as any).cards.map(async (slide: any) => {
+			carousel.cards.map(async (slide: any) => {
 				const { image, video, product, title, body, footer, buttons } = slide
 				let header: any = {}
 				if (product) {
@@ -752,26 +779,26 @@ export const generateWAMessageContent = async (
 			})
 		)
 		const interactiveMessage: any = { carouselMessage: { cards: slides } }
-		if ((message as any).text) {
-			interactiveMessage.body = { text: (message as any).text }
+		if (carousel.text) {
+			interactiveMessage.body = { text: carousel.text }
 		}
-		if ((message as any).title) {
+		if (carousel.title) {
 			interactiveMessage.header = {
-				title: (message as any).title,
-				subtitle: (message as any).subtitle ?? null,
+				title: carousel.title,
+				subtitle: carousel.subtitle ?? null,
 				hasMediaAttachment: false,
 			}
-		} else if ((message as any).caption) {
-			interactiveMessage.body = { text: (message as any).caption }
+		} else if (carousel.caption) {
+			interactiveMessage.body = { text: carousel.caption }
 			interactiveMessage.header = {
 				title: null,
-				subtitle: (message as any).subtitle ?? null,
+				subtitle: carousel.subtitle ?? null,
 				hasMediaAttachment: false,
 				...m,
 			}
 		}
-		if ((message as any).footer) {
-			interactiveMessage.footer = { text: (message as any).footer }
+		if (carousel.footer) {
+			interactiveMessage.footer = { text: carousel.footer }
 		}
 		m = { interactiveMessage }
 	} else if (hasOptionalProperty(message, 'ptv') && message.ptv) {
@@ -789,27 +816,52 @@ export const generateWAMessageContent = async (
 	} else if (hasNonNullishProperty(message, 'listReply')) {
 		m.listResponseMessage = { ...message.listReply }
 	} else if (hasNonNullishProperty(message, 'event')) {
-		m.eventMessage = {}
-		const startTime = Math.floor(message.event.startDate.getTime() / 1000)
+		const event = message.event as any
+		const toDate = (value: any) => {
+			if (value instanceof Date) {
+				return value
+			}
 
-		if (message.event.call && options.getCallLink) {
-			const token = await options.getCallLink(message.event.call, { startTime })
-			m.eventMessage.joinLink = (message.event.call === 'audio' ? CALL_AUDIO_PREFIX : CALL_VIDEO_PREFIX) + token
+			if (typeof value === 'number') {
+				return new Date(value < 1_000_000_000_000 ? value * 1000 : value)
+			}
+
+			if (typeof value === 'string' && value) {
+				const numeric = Number(value)
+				return Number.isFinite(numeric) ? new Date(numeric < 1_000_000_000_000 ? numeric * 1000 : numeric) : new Date(value)
+			}
+
+			return undefined
+		}
+
+		const startDate = toDate(event.startDate ?? event.startTime)
+		if (!startDate || Number.isNaN(startDate.getTime())) {
+			throw new Boom('Invalid event start time', { statusCode: 400 })
+		}
+
+		const endDate = toDate(event.endDate ?? event.endTime)
+		m.eventMessage = {}
+		const startTime = Math.floor(startDate.getTime() / 1000)
+
+		const callType = event.call ?? event.callType
+		if (callType && options.getCallLink) {
+			const token = await options.getCallLink(callType, { startTime })
+			m.eventMessage.joinLink = (callType === 'audio' ? CALL_AUDIO_PREFIX : CALL_VIDEO_PREFIX) + token
 		}
 
 		m.messageContextInfo = {
 			// encKey
-			messageSecret: message.event.messageSecret || randomBytes(32)
+			messageSecret: event.messageSecret || randomBytes(32)
 		}
 
-		m.eventMessage.name = message.event.name
-		m.eventMessage.description = message.event.description
+		m.eventMessage.name = event.name
+		m.eventMessage.description = event.description
 		m.eventMessage.startTime = startTime
-		m.eventMessage.endTime = message.event.endDate ? message.event.endDate.getTime() / 1000 : undefined
-		m.eventMessage.isCanceled = message.event.isCancelled ?? false
-		m.eventMessage.extraGuestsAllowed = message.event.extraGuestsAllowed
-		m.eventMessage.isScheduleCall = message.event.isScheduleCall ?? false
-		m.eventMessage.location = message.event.location
+		m.eventMessage.endTime = endDate && !Number.isNaN(endDate.getTime()) ? Math.floor(endDate.getTime() / 1000) : undefined
+		m.eventMessage.isCanceled = event.isCancelled ?? event.isCanceled ?? false
+		m.eventMessage.extraGuestsAllowed = event.extraGuestsAllowed
+		m.eventMessage.isScheduleCall = event.isScheduleCall ?? false
+		m.eventMessage.location = event.location ?? (event.latitude !== undefined && event.longitude !== undefined ? { degreesLatitude: event.latitude, degreesLongitude: event.longitude, name: event.locationName } : undefined)
 	} else if (hasNonNullishProperty(message, 'poll')) {
 		message.poll.selectableCount ||= 0
 		message.poll.toAnnouncementGroup ||= false
@@ -852,27 +904,29 @@ export const generateWAMessageContent = async (
 			expectedImageCount: message.album.expectedImageCount,
 			expectedVideoCount: message.album.expectedVideoCount
 		}
-	} else if (hasNonNullishProperty(message, 'payment')) {
+	} else if (hasNonNullishProperty(message, 'payment') || (hasNonNullishProperty(message as any, 'amount') && hasNonNullishProperty(message as any, 'currency'))) {
 		const msg = message as any
+		const payment = msg.payment ?? msg
+		const requestFrom = payment.from?.includes('@') ? payment.from : payment.from ? `${payment.from}@s.whatsapp.net` : '0@s.whatsapp.net'
 		m.requestPaymentMessage = {
 			amount: {
-				currencyCode: msg.payment?.currency || 'IDR',
-				offset: msg.payment?.offset || 0,
-				value: msg.payment?.amount || 999999999
+				currencyCode: payment.currency || 'IDR',
+				offset: payment.offset || 0,
+				value: payment.amount || 999999999
 			},
-			expiryTimestamp: msg.payment?.expiry || 0,
-			amount1000: (msg.payment?.amount || 999999999) * 1000,
-			currencyCodeIso4217: msg.payment?.currency || 'IDR',
-			requestFrom: msg.payment?.from || '0@s.whatsapp.net',
+			expiryTimestamp: payment.expiry || 0,
+			amount1000: Math.round((payment.amount || 999999999) * 1000),
+			currencyCodeIso4217: payment.currency || 'IDR',
+			requestFrom,
 			noteMessage: {
 				extendedTextMessage: {
-					text: msg.payment?.note || 'Notes'
+					text: payment.note || 'Notes'
 				}
 			},
 			background: {
-				placeholderArgb: msg.payment?.image?.placeholderArgb || 4278190080,
-				textArgb: msg.payment?.image?.textArgb || 4294967295,
-				subtextArgb: msg.payment?.image?.subtextArgb || 4294967295,
+				placeholderArgb: payment.image?.placeholderArgb || 4278190080,
+				textArgb: payment.image?.textArgb || 4294967295,
+				subtextArgb: payment.image?.subtextArgb || 4294967295,
 				type: 1
 			}
 		}
