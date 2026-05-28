@@ -308,7 +308,7 @@ export const prepareWAMessageMedia = async (
 			mediaKeyTimestamp: unixTimestampSeconds(),
 			...uploadData,
 			media: undefined
-		} as any)
+		})
 	})
 
 	if (uploadData.ptv) {
@@ -397,10 +397,14 @@ export const prepareAlbumMessageContent = async (
 			return options.suki.waUploadToServer(encFilePath, { ...opts, newsletter: isJidNewsletter(jid) })
 		}
 
-		const mediaMsg = await generateWAMessage(jid, { ...content, ...media }, {
-			...options,
-			upload: uploadFn as any
-		})
+		const mediaMsg = await generateWAMessage(
+			jid,
+			{ ...content, ...media },
+			{
+				...options,
+				upload: uploadFn as any
+			}
+		)
 
 		if (mediaMsg) {
 			mediaMsg.message!.messageContextInfo = {
@@ -504,13 +508,13 @@ export const generateWAMessageContent = async (
 		} else if (msg.caption || msg.image || msg.video || msg.document) {
 			// Media (and optional caption) header
 			const hasMedia = msg.image || msg.video || msg.document
-			const mediaContent = hasMedia ? await prepareWAMessageMedia(message as any, options) : {}
+			const mediaContent = hasMedia ? await prepareWAMessageMedia(message, options) : {}
 			interactiveMessage.body = { text: msg.caption ?? '' }
 			interactiveMessage.header = {
 				title: null,
 				subtitle: msg.subtitle ?? null,
 				hasMediaAttachment: !!hasMedia,
-				...mediaContent,
+				...mediaContent
 			}
 		} else {
 			// ✅ FIX: text + buttons only, no image/title/caption
@@ -528,31 +532,33 @@ export const generateWAMessageContent = async (
 			footerText: (message as any).footer,
 			description: (message as any).text,
 			sections: (message as any).sections,
-			listType: proto.Message.ListMessage.ListType.SINGLE_SELECT,
+			listType: proto.Message.ListMessage.ListType.SINGLE_SELECT
 		}
 	} else if (hasNonNullishProperty(message, 'buttons')) {
 		const msg = message as any
 		const buttonsMessage: any = {
 			buttons: msg.buttons.map((b: any) => ({
 				...b,
-				type: proto.Message.ButtonsMessage.Button.Type.RESPONSE,
-			})),
+				type: proto.Message.ButtonsMessage.Button.Type.RESPONSE
+			}))
 		}
 		if (hasNonNullishProperty(message, 'text')) {
 			buttonsMessage.contentText = msg.text
 			buttonsMessage.headerType = proto.Message.ButtonsMessage.HeaderType.EMPTY
 		} else {
 			const hasMedia = msg.image || msg.video || msg.document
-			if (hasMedia) m = await prepareWAMessageMedia(message as any, options)
+			if (hasMedia) m = await prepareWAMessageMedia(message, options)
 			if (msg.caption) buttonsMessage.contentText = msg.caption
 			const type = Object.keys(m)[0]?.replace('Message', '').toUpperCase()
 			if (type) buttonsMessage.headerType = (proto.Message.ButtonsMessage.HeaderType as any)[type]
 			Object.assign(buttonsMessage, m)
 		}
+
 		if (msg.title) {
 			buttonsMessage.text = msg.title
 			buttonsMessage.headerType = proto.Message.ButtonsMessage.HeaderType.TEXT
 		}
+
 		if (msg.footer) buttonsMessage.footerText = msg.footer
 		m = { buttonsMessage }
 	} else if (hasNonNullishProperty(message, 'templateButtons')) {
@@ -562,10 +568,11 @@ export const generateWAMessageContent = async (
 			hydratedTemplate.hydratedContentText = msg.text
 		} else {
 			const hasMedia = msg.image || msg.video || msg.document
-			if (hasMedia) m = await prepareWAMessageMedia(message as any, options)
+			if (hasMedia) m = await prepareWAMessageMedia(message, options)
 			if (msg.caption) hydratedTemplate.hydratedContentText = msg.caption
 			Object.assign(hydratedTemplate, m)
 		}
+
 		if (msg.footer) hydratedTemplate.hydratedFooterText = msg.footer
 		m = { templateMessage: { hydratedTemplate } }
 	} else if (hasNonNullishProperty(message, 'text')) {
@@ -674,9 +681,9 @@ export const generateWAMessageContent = async (
 					title: message.buttonReply.displayText,
 					description: message.buttonReply.displayText,
 					singleSelectReply: {
-						selectedRowId: message.buttonReply.id,
+						selectedRowId: message.buttonReply.id
 					},
-					listType: proto.Message.ListResponseMessage.ListType.SINGLE_SELECT,
+					listType: proto.Message.ListResponseMessage.ListType.SINGLE_SELECT
 				}
 				break
 			case 'template':
@@ -697,13 +704,13 @@ export const generateWAMessageContent = async (
 				m.interactiveResponseMessage = {
 					body: {
 						text: message.buttonReply.displayText,
-						format: proto.Message.InteractiveResponseMessage.Body.Format.EXTENSIONS_1,
+						format: proto.Message.InteractiveResponseMessage.Body.Format.EXTENSIONS_1
 					},
 					nativeFlowResponseMessage: {
 						name: message.buttonReply.nativeFlows?.name,
 						paramsJson: message.buttonReply.nativeFlows?.paramsJson,
-						version: message.buttonReply.nativeFlows?.version,
-					},
+						version: message.buttonReply.nativeFlows?.version
+					}
 				}
 				break
 		}
@@ -720,11 +727,11 @@ export const generateWAMessageContent = async (
 				productSections: (message as any).productList,
 				headerImage: {
 					productId: (message as any).productList[0]?.products?.[0]?.productId,
-					jpegThumbnail: thumbResult?.thumbnail ? Buffer.from(thumbResult.thumbnail, 'base64') : undefined,
+					jpegThumbnail: thumbResult?.thumbnail ? Buffer.from(thumbResult.thumbnail, 'base64') : undefined
 				},
-				businessOwnerJid: (message as any).businessOwnerJid,
+				businessOwnerJid: (message as any).businessOwnerJid
 			},
-			listType: proto.Message.ListMessage.ListType.PRODUCT_LIST,
+			listType: proto.Message.ListMessage.ListType.PRODUCT_LIST
 		}
 	} else if (hasNonNullishProperty(message, 'shop')) {
 		const msg = message as any
@@ -734,26 +741,42 @@ export const generateWAMessageContent = async (
 			interactiveMessage.header = { title: msg.title, subtitle: msg.subtitle ?? null, hasMediaAttachment: false }
 		} else if (msg.caption || msg.image || msg.video || msg.document) {
 			const hasMedia = msg.image || msg.video || msg.document
-			const mediaContent = hasMedia ? await prepareWAMessageMedia(message as any, options) : {}
+			const mediaContent = hasMedia ? await prepareWAMessageMedia(message, options) : {}
 			interactiveMessage.body = { text: msg.caption ?? '' }
-			interactiveMessage.header = { title: null, subtitle: msg.subtitle ?? null, hasMediaAttachment: !!hasMedia, ...mediaContent }
+			interactiveMessage.header = {
+				title: null,
+				subtitle: msg.subtitle ?? null,
+				hasMediaAttachment: !!hasMedia,
+				...mediaContent
+			}
 		}
+
 		if (msg.footer) interactiveMessage.footer = { text: msg.footer }
 		m = { interactiveMessage }
 	} else if (hasNonNullishProperty(message, 'collection')) {
 		const msg = message as any
 		const interactiveMessage: any = {
-			collectionMessage: { bizJid: msg.collection.bizJid, id: msg.collection.id, messageVersion: msg.collection.version },
+			collectionMessage: {
+				bizJid: msg.collection.bizJid,
+				id: msg.collection.id,
+				messageVersion: msg.collection.version
+			}
 		}
 		if (msg.body) interactiveMessage.body = { text: msg.body }
 		if (msg.title) {
 			interactiveMessage.header = { title: msg.title, subtitle: msg.subtitle ?? null, hasMediaAttachment: false }
 		} else if (msg.caption || msg.image || msg.video || msg.document) {
 			const hasMedia = msg.image || msg.video || msg.document
-			const mediaContent = hasMedia ? await prepareWAMessageMedia(message as any, options) : {}
+			const mediaContent = hasMedia ? await prepareWAMessageMedia(message, options) : {}
 			interactiveMessage.body = { text: msg.caption ?? '' }
-			interactiveMessage.header = { title: null, subtitle: msg.subtitle ?? null, hasMediaAttachment: !!hasMedia, ...mediaContent }
+			interactiveMessage.header = {
+				title: null,
+				subtitle: msg.subtitle ?? null,
+				hasMediaAttachment: !!hasMedia,
+				...mediaContent
+			}
 		}
+
 		if (msg.footer) interactiveMessage.footer = { text: msg.footer }
 		m = { interactiveMessage }
 	} else if (hasNonNullishProperty(message, 'cards') || hasNonNullishProperty(message as any, 'carousel')) {
@@ -770,11 +793,12 @@ export const generateWAMessageContent = async (
 				} else if (video) {
 					header = await prepareWAMessageMedia({ video }, options)
 				}
+
 				return {
 					header: { title, hasMediaAttachment: true, ...header },
 					body: { text: body },
 					footer: { text: footer },
-					nativeFlowMessage: { buttons },
+					nativeFlowMessage: { buttons }
 				}
 			})
 		)
@@ -782,11 +806,12 @@ export const generateWAMessageContent = async (
 		if (carousel.text) {
 			interactiveMessage.body = { text: carousel.text }
 		}
+
 		if (carousel.title) {
 			interactiveMessage.header = {
 				title: carousel.title,
 				subtitle: carousel.subtitle ?? null,
-				hasMediaAttachment: false,
+				hasMediaAttachment: false
 			}
 		} else if (carousel.caption) {
 			interactiveMessage.body = { text: carousel.caption }
@@ -794,12 +819,14 @@ export const generateWAMessageContent = async (
 				title: null,
 				subtitle: carousel.subtitle ?? null,
 				hasMediaAttachment: false,
-				...m,
+				...m
 			}
 		}
+
 		if (carousel.footer) {
 			interactiveMessage.footer = { text: carousel.footer }
 		}
+
 		m = { interactiveMessage }
 	} else if (hasOptionalProperty(message, 'ptv') && message.ptv) {
 		const { videoMessage } = await prepareWAMessageMedia({ video: message.video }, options)
@@ -828,7 +855,9 @@ export const generateWAMessageContent = async (
 
 			if (typeof value === 'string' && value) {
 				const numeric = Number(value)
-				return Number.isFinite(numeric) ? new Date(numeric < 1_000_000_000_000 ? numeric * 1000 : numeric) : new Date(value)
+				return Number.isFinite(numeric)
+					? new Date(numeric < 1_000_000_000_000 ? numeric * 1000 : numeric)
+					: new Date(value)
 			}
 
 			return undefined
@@ -857,11 +886,16 @@ export const generateWAMessageContent = async (
 		m.eventMessage.name = event.name
 		m.eventMessage.description = event.description
 		m.eventMessage.startTime = startTime
-		m.eventMessage.endTime = endDate && !Number.isNaN(endDate.getTime()) ? Math.floor(endDate.getTime() / 1000) : undefined
+		m.eventMessage.endTime =
+			endDate && !Number.isNaN(endDate.getTime()) ? Math.floor(endDate.getTime() / 1000) : undefined
 		m.eventMessage.isCanceled = event.isCancelled ?? event.isCanceled ?? false
 		m.eventMessage.extraGuestsAllowed = event.extraGuestsAllowed
 		m.eventMessage.isScheduleCall = event.isScheduleCall ?? false
-		m.eventMessage.location = event.location ?? (event.latitude !== undefined && event.longitude !== undefined ? { degreesLatitude: event.latitude, degreesLongitude: event.longitude, name: event.locationName } : undefined)
+		m.eventMessage.location =
+			event.location ??
+			(event.latitude !== undefined && event.longitude !== undefined
+				? { degreesLatitude: event.latitude, degreesLongitude: event.longitude, name: event.locationName }
+				: undefined)
 	} else if (hasNonNullishProperty(message, 'poll')) {
 		message.poll.selectableCount ||= 0
 		message.poll.toAnnouncementGroup ||= false
@@ -904,10 +938,17 @@ export const generateWAMessageContent = async (
 			expectedImageCount: message.album.expectedImageCount,
 			expectedVideoCount: message.album.expectedVideoCount
 		}
-	} else if (hasNonNullishProperty(message, 'payment') || (hasNonNullishProperty(message as any, 'amount') && hasNonNullishProperty(message as any, 'currency'))) {
+	} else if (
+		hasNonNullishProperty(message, 'payment') ||
+		(hasNonNullishProperty(message as any, 'amount') && hasNonNullishProperty(message as any, 'currency'))
+	) {
 		const msg = message as any
 		const payment = msg.payment ?? msg
-		const requestFrom = payment.from?.includes('@') ? payment.from : payment.from ? `${payment.from}@s.whatsapp.net` : '0@s.whatsapp.net'
+		const requestFrom = payment.from?.includes('@')
+			? payment.from
+			: payment.from
+				? `${payment.from}@s.whatsapp.net`
+				: '0@s.whatsapp.net'
 		m.requestPaymentMessage = {
 			amount: {
 				currencyCode: payment.currency || 'IDR',

@@ -53,7 +53,6 @@ import {
 	type BinaryNode,
 	type BinaryNodeAttributes,
 	type FullJid,
-	getBinaryFilteredBizBot,
 	getBinaryFilteredButtons,
 	getBinaryNodeChild,
 	getBinaryNodeChildren,
@@ -629,8 +628,11 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 		const nativeFlow = msg?.interactiveMessage?.nativeFlowMessage
 		const firstButtonName = nativeFlow?.buttons?.[0]?.name ?? ''
 		const nativeFlowSpecials = [
-			'mpm', 'cta_catalog', 'send_location',
-			'call_permission_request', 'wa_payment_transaction_details',
+			'mpm',
+			'cta_catalog',
+			'send_location',
+			'call_permission_request',
+			'wa_payment_transaction_details',
 			'automated_greeting_message_view_catalog'
 		]
 		if (nativeFlow && (firstButtonName === 'review_and_pay' || firstButtonName === 'payment_info')) {
@@ -643,7 +645,11 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 				tag: 'biz',
 				attrs: { actual_actors: '2', host_storage: '2', privacy_mode_ts: unixTimestampSeconds().toString() },
 				content: [
-					{ tag: 'interactive', attrs: { type: 'native_flow', v: '1' }, content: [{ tag: 'native_flow', attrs: { v: '2', name: firstButtonName } }] },
+					{
+						tag: 'interactive',
+						attrs: { type: 'native_flow', v: '1' },
+						content: [{ tag: 'native_flow', attrs: { v: '2', name: firstButtonName } }]
+					},
 					{ tag: 'quality_control', attrs: { source_type: 'third_party' } }
 				]
 			}
@@ -652,7 +658,11 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 				tag: 'biz',
 				attrs: { actual_actors: '2', host_storage: '2', privacy_mode_ts: unixTimestampSeconds().toString() },
 				content: [
-					{ tag: 'interactive', attrs: { type: 'native_flow', v: '1' }, content: [{ tag: 'native_flow', attrs: { v: '9', name: 'mixed' } }] },
+					{
+						tag: 'interactive',
+						attrs: { type: 'native_flow', v: '1' },
+						content: [{ tag: 'native_flow', attrs: { v: '9', name: 'mixed' } }]
+					},
 					{ tag: 'quality_control', attrs: { source_type: 'third_party' } }
 				]
 			}
@@ -666,7 +676,11 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 				]
 			}
 		}
-		return { tag: 'biz', attrs: { actual_actors: '2', host_storage: '2', privacy_mode_ts: unixTimestampSeconds().toString() } }
+
+		return {
+			tag: 'biz',
+			attrs: { actual_actors: '2', host_storage: '2', privacy_mode_ts: unixTimestampSeconds().toString() }
+		}
 	}
 
 	const relayMessage = async (
@@ -1414,15 +1428,16 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 					userJid,
 					upload: waUploadToServer,
 					...options
-				} as any)
+				})
 				for (const media of albumMsg) {
 					await delay((options as any).delay || 500)
-					await relayMessage(jid, media.message!, {
+					await relayMessage(jid, media.message, {
 						messageId: media.key.id!,
 						useCachedGroupMetadata: options.useCachedGroupMetadata,
 						statusJidList: options.statusJidList
 					})
 				}
+
 				return albumMsg[albumMsg.length - 1]
 			} else {
 				const fullMsg = await generateWAMessage(jid, content, {
@@ -1472,14 +1487,14 @@ export const makeMessagesSocket = (config: SocketConfig) => {
 						attrs: {
 							polltype: 'creation'
 						}
-					} as BinaryNode)
+					})
 				} else if (isEventMsg) {
 					additionalNodes.push({
 						tag: 'meta',
 						attrs: {
 							event_type: 'creation'
 						}
-					} as BinaryNode)
+					})
 				}
 
 				await relayMessage(jid, fullMsg.message!, {

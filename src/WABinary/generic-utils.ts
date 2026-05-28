@@ -143,8 +143,8 @@ export function binaryNodeToString(node: BinaryNode | BinaryNode['content'], i =
 export const getBinaryFilteredButtons = (nodeContent: BinaryNode[]): boolean => {
 	if (!Array.isArray(nodeContent)) return false
 	return nodeContent.some(a => {
-		const firstChild = Array.isArray(a?.content) ? (a.content as BinaryNode[])[0] : undefined
-		const firstGrandchild = Array.isArray(firstChild?.content) ? (firstChild!.content as BinaryNode[])[0] : undefined
+		const firstChild = Array.isArray(a?.content) ? a.content[0] : undefined
+		const firstGrandchild = Array.isArray(firstChild?.content) ? firstChild.content[0] : undefined
 		return (
 			(firstGrandchild?.tag !== undefined && ['native_flow'].includes(firstGrandchild.tag)) ||
 			(firstChild?.tag !== undefined && ['interactive', 'buttons', 'list'].includes(firstChild.tag)) ||

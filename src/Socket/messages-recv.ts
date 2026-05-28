@@ -562,7 +562,14 @@ export const makeMessagesRecvSocket = (config: SocketConfig) => {
 		if (isVideo) {
 			offerContent.push({
 				tag: 'video',
-				attrs: { enc: 'vp8', dec: 'vp8', orientation: '0', screen_width: '1920', screen_height: '1080', device_orientation: '0' },
+				attrs: {
+					enc: 'vp8',
+					dec: 'vp8',
+					orientation: '0',
+					screen_width: '1920',
+					screen_height: '1080',
+					device_orientation: '0'
+				},
 				content: undefined
 			})
 		}
