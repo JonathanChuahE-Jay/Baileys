@@ -84,8 +84,12 @@ export const NACK_REASONS = {
  * Distinct from the client-side NackReason enum (WAWebCreateNackFromStanza).
  */
 export const SERVER_ERROR_CODES = {
-	/** 1:1 message missing privacy token (tctoken) */
-	MissingTcToken: '463',
+	/**
+	 * 1:1 message missing privacy token (tctoken). Usually means the account is
+	 * restricted: WhatsApp blocks starting new chats but preserves existing ones,
+	 * since established chats already carry a tctoken.
+	 */
+	MessageAccountRestriction: '463',
 	/** Stanza validation failure (SMAX_INVALID) — likely stale device session */
 	SmaxInvalid: '479'
 } as const
@@ -170,6 +174,13 @@ export function decodeMessageNode(stanza: BinaryNode, meId: string, meLid: strin
 
 			chatId = recipient
 		} else {
+			// Peer-routed self stanzas (history sync, app-state sync, etc.) arrive
+			// with `from` set to our own device but no `recipient` attribute —
+			// still mark as fromMe so self-only protocolMessage handlers run.
+			if (isMe(from) || isMeLid(from)) {
+				fromMe = true
+			}
+
 			chatId = from
 		}
 

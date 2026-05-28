@@ -9,7 +9,11 @@ baileys_store*.json
 browser-messages.json
 browser-token.json
 decoded-ws.json
-docs
+!docs/
+docs/*
+!docs/index.html
+!docs/404.html
+!docs/.nojekyll
 messages*.json
 node_modules
 output.csv
