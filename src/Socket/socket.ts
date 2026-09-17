@@ -63,6 +63,16 @@ import { WebSocketClient } from './Client'
 import { executeWMexQuery } from './mex.js'
 
 /**
+ * Picks the foreground state this companion reports to WA on login.
+ *
+ * WA suppresses the push notification to the user's phone while any companion is
+ * 'active', so a client that asked not to be marked online must report 'passive'
+ * or it silently steals every notification from the phone.
+ */
+export const passiveIqTagFor = (markOnlineOnConnect: boolean): 'passive' | 'active' =>
+	markOnlineOnConnect ? 'active' : 'passive'
+
+/**
  * Connects to WA servers and performs:
  * - simple queries (no retry mechanism, wait for connection establishment)
  * - listen to messages and emit events
@@ -81,6 +91,7 @@ export const makeSocket = (config: SocketConfig) => {
 		defaultQueryTimeoutMs,
 		transactionOpts,
 		qrTimeout,
+		markOnlineOnConnect,
 		makeSignalRepository
 	} = config
 
@@ -722,7 +733,13 @@ export const makeSocket = (config: SocketConfig) => {
 				logger.warn('keep alive called when WS not open')
 			}
 		}, keepAliveIntervalMs))
-	/** i have no idea why this exists. pls enlighten me */
+	/**
+	 * Declares whether this companion is in the foreground. WA Web sends <active/>
+	 * when its tab is focused and <passive/> when it is backgrounded, and the server
+	 * uses it to decide where a message notification goes: while any companion is
+	 * 'active', the push to the phone is suppressed on the assumption the user is
+	 * already looking at that device.
+	 */
 	const sendPassiveIq = (tag: 'passive' | 'active') =>
 		query({
 			tag: 'iq',
@@ -937,7 +954,7 @@ export const makeSocket = (config: SocketConfig) => {
 		try {
 			updateServerTimeOffset(node)
 			await uploadPreKeysToServerIfRequired()
-			await sendPassiveIq('active')
+			await sendPassiveIq(passiveIqTagFor(markOnlineOnConnect))
 
 			// After successful login, validate our key-bundle against server
 			try {
